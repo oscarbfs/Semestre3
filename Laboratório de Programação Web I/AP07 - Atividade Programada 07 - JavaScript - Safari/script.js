@@ -2,8 +2,9 @@
 
 function jogar() {
     var qtdeJogadores = definirQtdeJogadores();
-    var jogadores = introduzirJogadores(qtdeJogadores);
-    var jogadorVencedor = desenvolverPartida(jogadores);
+    var tabuleiro = criarTabuleiro();
+    var jogadores = introduzirJogadores(qtdeJogadores, tabuleiro);
+    var jogadorVencedor = desenvolverPartida(jogadores, tabuleiro);
     finalizarPartida(jogadorVencedor);
 }
 
@@ -11,7 +12,7 @@ function jogar() {
 
 function criarEfeito(tipoDoEfeito, valor) {
     var efeito = {
-        "TipoDoEfeito": tipoDoEfeito,
+        "tipoDoEfeito": tipoDoEfeito,
         "valor": valor,
     }
     return efeito;
@@ -21,6 +22,7 @@ function criarCasa(numero, tipoDoEfeito, valor) {
     var casa = {
         "numero": numero,
         "efeito": criarEfeito(tipoDoEfeito, valor),
+        "jogadores": [],
     }
     return casa;
 }
@@ -84,7 +86,7 @@ function definirQtdeJogadores() {
     return qtdeJogadores;
 }
 
-function introduzirJogadores(qtdeJogadores) {
+function introduzirJogadores(qtdeJogadores, tabuleiro) {
     var jogadores = [];
 
     for (let index = 0; index < qtdeJogadores; index++) {
@@ -97,6 +99,7 @@ function introduzirJogadores(qtdeJogadores) {
         cor = prompt(`Informe a cor do seu pião, ${nome}:`);
 
         var jogador = criarJogador(nome, cor);
+        posicionarJogadorNoTabuleiro(jogador, tabuleiro);
 
         jogadores.push(jogador)
 
@@ -105,7 +108,7 @@ function introduzirJogadores(qtdeJogadores) {
     return jogadores;
 }
 
-function desenvolverPartida(jogadores) {
+function desenvolverPartida(jogadores, tabuleiro) {
     var jogadorVencedor;
     var terminarPartida = false;
 
@@ -113,13 +116,19 @@ function desenvolverPartida(jogadores) {
         jogadores.forEach(jogador => {
             
             if(jogador.rodasSemJogar == 0) {
-                prompt(`${jogador.cor} (${jogador.nome}), é sua vez!\n(Aperte Enter para continuar)`);
-                vezDoJogador(jogador);
+                var resposta = prompt(`${jogador.cor} (${jogador.nome}), é sua vez!\nENTER- Para continuar;\nT- Para continuar e ver o tabuleiro.`);
+                vezDoJogador(jogador, tabuleiro);
             } else if(terminarPartida != true) {
-                prompt(`${jogador.cor} (${jogador.nome}), essa roda você não jogar, por causa do efeito!\n(Aperte Enter para continuar)`);
+                var resposta = prompt(`${jogador.cor} (${jogador.nome}), essa roda você não jogar, por causa do efeito!\nENTER- Para continuar;\nT- Para continuar e ver o tabuleiro.`);
                 jogador.rodasSemJogar--;
             }
             
+            if(resposta == "t" || resposta == "T") {
+                mostrarTabuleiro(tabuleiro);
+            } else {
+                mostrarJogador(jogador);
+            }
+
             if(jogador.casaAtual == 35) {
                 jogadorVencedor = jogador;
                 terminarPartida=true;
@@ -136,52 +145,89 @@ function finalizarPartida(jogadorVencedor) {
     `PARABENS!!!`);
 }
 
-function vezDoJogador(jogador) {
+function vezDoJogador(jogador, tabuleiro) {
     var valorDoDado = jogarDado();
     prompt(`Dados Jogados! ${jogador.nome}, vai andar ${valorDoDado} casas!`);
 
-    var casaDestino = jogador.casaAtual + valorDoDado;
-    verificarCasa(casaDestino, jogador);
-
-    mostrarJogador(jogador);
-
+    andarNoTabuleiro(jogador, valorDoDado, tabuleiro);
 }
 
-function verificarCasa(numeroDaCasa, jogador) {
-    var efeito = efeitos.Nenhum;
-    var valor = 0;
-    var casaDestino = numeroDaCasa
+function andarNoTabuleiro(jogador, valorDoDado, tabuleiro) {
+    tirarJogadorDaCasa(tabuleiro, jogador);
 
-    casasComEfeito.forEach(casaComEfeito => {
-        if (casaComEfeito.numeroDaCasa == numeroDaCasa) {
-            efeito = casaComEfeito.efeito; 
-            valor = casaComEfeito.valor;
-        } 
-    });
-
-    if(efeito != efeitos.Nenhum) {
-        var efeitoString = "";
+    var numeroDaCasaDestino = jogador.casaAtual + valorDoDado;
+    
+    if(numeroDaCasaDestino <= 35) {
+        jogador.casaAtual = numeroDaCasaDestino;
         
-        if(efeito == efeitos.Avancar || efeito == efeitos.Voltar) {
-            efeitoString = `${efeito} até a casa ${valor}!`;
-            casaDestino = valor;
-        } else if (efeito == efeitos.JogarDeNovo || efeito == efeitos.Semjogar) {
-            efeitoString = `${efeito} ${valor} vez(es)!`;
-        }
+        var casaDestino = tabuleiro[numeroDaCasaDestino];
+        
+        executarEfeito(casaDestino, jogador, tabuleiro);
+        
+        posicionarJogadorNoTabuleiro(jogador, tabuleiro);
+    }
+}
 
-        log(`${jogador.nome} você caiu numa casa com efeito!\n`+
-        `A casa é: ${numeroDaCasa}.\n` +
-        `O efeito é: ${efeitoString}.`);
+function posicionarJogadorNoTabuleiro(jogador, tabuleiro) {
+    tabuleiro[jogador.casaAtual].jogadores.push(jogador);
+}
 
-        if(efeito == efeitos.JogarDeNovo) {
-            vezDoJogador(jogador);
-        } else if(efeito == efeitos.Semjogar) {
+function tirarJogadorDaCasa(tabuleiro,  jogador) {
+    var index = tabuleiro[jogador.casaAtual].jogadores.indexOf(jogador);
+
+    if (index >= 0) {
+        tabuleiro[jogador.casaAtual].jogadores.splice(index, 1);
+    }
+}
+
+function executarEfeito(casaDestino, jogador, tabuleiro) {
+    var efeito = casaDestino.efeito;
+    
+    var tipoDoEfeito = efeito.tipoDoEfeito;
+    var valor = efeito.valor;
+
+    mostrarEfeitoDaCasaParaJogador(jogador, casaDestino);
+
+    switch (tipoDoEfeito) {
+        case efeitos.Avancar:
+            jogador.casaAtual = valor;
+            break;
+            
+        case efeitos.Voltar:
+            jogador.casaAtual = valor;
+            break;
+            
+        case efeitos.JogarDeNovo:
+            vezDoJogador(jogador, tabuleiro);
+            break;
+            
+        case efeitos.Semjogar:
             jogador.rodasSemJogar++;
-        }
+            break;
+    
+        default:
+            break;
+    }
+}
+function mostrarEfeitoDaCasaParaJogador(jogador, casa) {
+    var numero = casa.numero;
+    var efeito = casa.efeito;
+    
+    var tipoDoEfeito = efeito.tipoDoEfeito;
+    var valor = efeito.valor;
+
+    var efeitoString = "";
+
+    if(tipoDoEfeito == efeitos.Avancar || tipoDoEfeito == efeitos.Voltar) {
+        efeitoString = `${tipoDoEfeito} até a casa ${valor}!`;
+    } else if (tipoDoEfeito == efeitos.JogarDeNovo || tipoDoEfeito == efeitos.Semjogar) {
+        efeitoString = `${tipoDoEfeito} ${valor} vez(es)!`;
     }
 
-    if(numeroDaCasa <= 35) {
-        jogador.casaAtual = casaDestino;
+    if(tipoDoEfeito != efeitos.Nenhum) {
+        log(`${jogador.nome} você caiu numa casa com efeito!\n`+
+                `A casa é: ${numero}.\n` +
+                `O efeito é: ${efeitoString}.`);
     }
 }
 
@@ -207,15 +253,35 @@ function definirEfeitoDaCasa(casas, numeroDaCasa) {
 
 // logs
 
-function mostrarTabuleiro() {
-    var tabuleiro = criarTabuleiro();
+function mostrarTabuleiro(tabuleiro) {
     tabuleiro.forEach(casa => {
-        log(`casa: ${casa.numero}\nefeito: ${casa.efeito.TipoDoEfeito} ${casa.efeito.valor}`);
+        mostrarCasa(casa);
     });
 }
 
+function mostrarCasa(casa) {
+    log(`Numero da Casa: ${casa.numero}\n` +
+    `Efeito da Casa: ${casa.efeito.tipoDoEfeito}\n` +
+    `Valor do Efeito: ${casa.efeito.valor}\n` +
+    `Jogadores na Casa:\n${mostrarJogadores(casa.jogadores)}`)
+}
+
+function mostrarJogadores(jogadores) {
+    var jogadoresString = "[\n";
+
+    jogadores.forEach(jogador => {
+        jogadoresString += ` ${jogadorToString(jogador)}\n`;
+    });
+
+    return jogadoresString + "]";
+}
+
 function mostrarJogador(jogador) {
-    log(`O peão ${jogador.cor} (${jogador.nome}) está na casa ${jogador.casaAtual}`);
+    log(`O ${jogadorToString(jogador)} está na casa ${jogador.casaAtual}`);
+}
+
+function jogadorToString(jogador) {
+    return `Peão ${jogador.cor} (${jogador.nome})`;
 }
 
 // Utilidades
